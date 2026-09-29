@@ -1,0 +1,6 @@
+{
+  "name": "UMAIR ACADEMY",
+  "description": "Learn DIT & CIT Online From Home - Comprehensive LMS with interactive lessons, quizzes, final exams, and verifiable certificates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

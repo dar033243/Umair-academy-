@@ -1,0 +1,136 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone authenticated can read user basic profiles (needed for student search or reviews)
+      // or owner can read own
+      allow read: if isAuthenticated();
+      // Users can register their own document with role 'student' (or admin bootstrap)
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Users can update their own details, admins can update any (including role/status)
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Courses collection
+    match /courses/{courseId} {
+      // Anyone can read published courses; admins can read all
+      allow read: if resource.data.status == 'published' || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Modules collection
+    match /modules/{moduleId} {
+      allow read: if resource.data.status == 'published' || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Lessons collection
+    match /lessons/{lessonId} {
+      allow read: if resource.data.status == 'published' || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Enrollments collection
+    match /enrollments/{enrollmentId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Lesson Progress
+    match /lessonProgress/{progressId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Quizzes & Quiz Questions
+    match /quizzes/{quizId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /quizQuestions/{questionId} {
+      // Students can read questions during quiz attempt (answers checked on client or submittal)
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /quizAttempts/{attemptId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Final Exams & Questions & Attempts
+    match /finalExams/{examId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /finalExamQuestions/{questionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /finalExamAttempts/{attemptId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Student Questions & Support
+    match /questions/{questionId} {
+      // Students can read their own questions; admins can read and answer all
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isAdmin() || (isOwner(resource.data.studentId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['questionText', 'updatedAt']));
+      allow delete: if isAdmin();
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      // Students can read public notifications or notifications targeted to them
+      allow read: if isAuthenticated() && (
+        resource.data.target == 'all' || 
+        resource.data.studentId == request.auth.uid || 
+        isAdmin()
+      );
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Certificates
+    match /certificates/{certificateId} {
+      // Public read is required for the Certificate Verification page (/verify)
+      allow read: if true;
+      allow create: if isAuthenticated() && (request.resource.data.studentId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Academy Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
